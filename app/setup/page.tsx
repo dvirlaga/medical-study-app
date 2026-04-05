@@ -4,26 +4,28 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 async function extractTextFromPDF(file: File): Promise<string> {
-  const pdfjs = await import('pdfjs-dist');
-  // Use CDN worker to avoid bundling issues
-  (pdfjs as any).GlobalWorkerOptions.workerSrc =
-    `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+  // Dynamic import keeps pdfjs out of the initial bundle
+  const pdfjsLib = await import('pdfjs-dist' as any);
+
+  // Use CDN worker — avoids bundling complexity entirely
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://unpkg.com/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
 
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+  const pdf = await loadingTask.promise;
 
-  let fullText = '';
+  const pages: string[] = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    fullText +=
-      content.items
-        .filter((item: any) => 'str' in item)
-        .map((item: any) => item.str)
-        .join(' ') + '\n\n';
+    const pageText = (content.items as any[])
+      .map((item: any) => item.str ?? '')
+      .join(' ');
+    pages.push(pageText);
   }
 
-  return fullText.trim();
+  return pages.join('\n\n').trim();
 }
 
 export default function SetupPage() {
