@@ -199,11 +199,17 @@ export default function DashboardPage() {
         {/* Today's Material */}
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <h2 className="text-lg font-bold text-gray-900 mb-3">📚 חומר ללימוד היום</h2>
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-3">
             {todayPlan.topics.map((topic, i) => (
               <span key={i} className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">{topic}</span>
             ))}
           </div>
+          {todayPlan.pages && (
+            <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-1.5 rounded-lg mb-4">
+              <span>📖</span>
+              <span>עמודים {todayPlan.pages}</span>
+            </div>
+          )}
           <p className="text-gray-700 leading-relaxed mb-4" dir="auto">{todayPlan.summary}</p>
           <h3 className="font-semibold text-gray-800 mb-2">נקודות מפתח:</h3>
           <ul className="space-y-2">

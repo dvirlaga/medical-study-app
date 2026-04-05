@@ -71,7 +71,8 @@ Return ONLY a valid JSON object — no markdown, no explanation, just JSON:
       "topics": ["Specific Topic 1", "Specific Topic 2"],
       "summary": "2-3 sentence description of today's material",
       "keyPoints": ["Key point 1", "Key point 2", "Key point 3", "Key point 4"],
-      "osmosisTerms": ["english medical term 1", "english medical term 2"]
+      "osmosisTerms": ["english medical term 1", "english medical term 2"],
+      "pages": "1-24"
     }
   ]
 }
@@ -80,7 +81,8 @@ Rules:
 - osmosisTerms MUST be in English (used to search on Osmosis medical video platform)
 - topics, summary, keyPoints should match the document's language (Hebrew if document is Hebrew)
 - Distribute ALL content evenly across ${TOTAL_DAYS} days
-- Days 45, 46, 47 must be comprehensive review days covering all material`,
+- Days 45, 46, 47 must be comprehensive review days covering all material
+- pages: the relevant page range(s) from the PDF for that day (e.g. "12-34" or "45, 67-70"). If page numbers are not visible in the text, estimate based on content position.`,
 
       messages: [
         {

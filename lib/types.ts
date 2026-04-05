@@ -5,6 +5,7 @@ export interface DayPlan {
   summary: string;
   keyPoints: string[];
   osmosisTerms: string[];
+  pages?: string; // e.g. "12-34" or "45, 67-70"
 }
 
 export interface StudyPlan {
