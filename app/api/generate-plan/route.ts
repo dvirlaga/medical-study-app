@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
 
     // Generate study plan using Claude with PDF sent as base64 document
     const message = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 64000,
+      model: 'claude-haiku-4-5',
+      max_tokens: 16000,
       system: `You are a medical study assistant. Analyze the provided PDF and create a ${TOTAL_DAYS}-day study plan.
 
 Return ONLY a valid JSON object — no markdown, no explanation, just JSON:

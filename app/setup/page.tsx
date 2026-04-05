@@ -29,10 +29,17 @@ export default function SetupPage() {
         body: formData,
       });
 
-      const data = await res.json();
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(
+          'הבקשה ארכה זמן רב מדי או שהקובץ גדול מדי. נסה עם PDF קטן יותר (עד 10MB).'
+        );
+      }
 
       if (!res.ok) {
-        throw new Error(data.error ?? 'Something went wrong');
+        throw new Error(data?.error ?? 'Something went wrong');
       }
 
       router.push('/');
