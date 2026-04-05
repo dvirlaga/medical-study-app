@@ -24,10 +24,4 @@ export interface MultipleChoiceQuestion {
   explanation: string;
 }
 
-export interface ShortAnswerQuestion {
-  type: 'short_answer';
-  question: string;
-  modelAnswer: string;
-}
-
-export type Question = MultipleChoiceQuestion | ShortAnswerQuestion;
+export type Question = MultipleChoiceQuestion;

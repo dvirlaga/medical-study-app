@@ -29,11 +29,11 @@ export default function DashboardPage() {
 
   // Quiz state
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [allAskedQuestions, setAllAskedQuestions] = useState<string[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [quizStarted, setQuizStarted] = useState(false);
   const [currentQ, setCurrentQ] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [shortAnswer, setShortAnswer] = useState('');
   const [answered, setAnswered] = useState(false);
   const [score, setScore] = useState(0);
   const [quizDone, setQuizDone] = useState(false);
@@ -50,6 +50,7 @@ export default function DashboardPage() {
       const dayData = plan.days.find((d) => d.day === viewDay) ?? null;
       setTodayPlan(dayData);
       resetQuiz();
+      setAllAskedQuestions([]);
     }
   }, [plan, viewDay]);
 
@@ -58,10 +59,7 @@ export default function DashboardPage() {
     try {
       const res = await fetch('/api/study-plan');
       const data = await res.json();
-      if (!data.plan) {
-        router.push('/setup');
-        return;
-      }
+      if (!data.plan) { router.push('/setup'); return; }
       setPlan(data.plan);
     } catch {
       router.push('/setup');
@@ -75,13 +73,12 @@ export default function DashboardPage() {
     setQuestions([]);
     setCurrentQ(0);
     setSelectedAnswer(null);
-    setShortAnswer('');
     setAnswered(false);
     setScore(0);
     setQuizDone(false);
   }
 
-  async function startQuiz() {
+  async function fetchQuestions(isNew = false) {
     if (!todayPlan) return;
     setLoadingQuestions(true);
     setQuizStarted(true);
@@ -90,16 +87,24 @@ export default function DashboardPage() {
     setScore(0);
     setAnswered(false);
     setSelectedAnswer(null);
-    setShortAnswer('');
 
     try {
       const res = await fetch('/api/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dayPlan: todayPlan }),
+        body: JSON.stringify({
+          dayPlan: todayPlan,
+          previousQuestions: isNew ? allAskedQuestions : [],
+        }),
       });
       const data = await res.json();
-      setQuestions(data.questions ?? []);
+      const newQuestions: Question[] = data.questions ?? [];
+      setQuestions(newQuestions);
+      // Track all questions asked so far for this day
+      setAllAskedQuestions((prev) => [
+        ...prev,
+        ...newQuestions.map((q) => q.question),
+      ]);
     } catch {
       setQuestions([]);
     } finally {
@@ -110,10 +115,8 @@ export default function DashboardPage() {
   function handleAnswer() {
     if (!answered) {
       setAnswered(true);
-      const q = questions[currentQ];
-      if (q.type === 'multiple_choice' && selectedAnswer === (q as MultipleChoiceQuestion).correctIndex) {
-        setScore((s) => s + 1);
-      }
+      const q = questions[currentQ] as MultipleChoiceQuestion;
+      if (selectedAnswer === q.correctIndex) setScore((s) => s + 1);
     } else {
       if (currentQ + 1 >= questions.length) {
         setQuizDone(true);
@@ -121,7 +124,6 @@ export default function DashboardPage() {
         setCurrentQ((c) => c + 1);
         setAnswered(false);
         setSelectedAnswer(null);
-        setShortAnswer('');
       }
     }
   }
@@ -133,7 +135,7 @@ export default function DashboardPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="text-4xl animate-spin mb-3">⚕️</div>
-          <p className="text-gray-600">Loading study plan...</p>
+          <p className="text-gray-600">טוען תוכנית לימודים...</p>
         </div>
       </div>
     );
@@ -141,7 +143,7 @@ export default function DashboardPage() {
 
   if (!plan || !todayPlan) return null;
 
-  const currentQ_data = questions[currentQ];
+  const currentQ_data = questions[currentQ] as MultipleChoiceQuestion | undefined;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -180,10 +182,7 @@ export default function DashboardPage() {
               ← יום קודם
             </button>
             {viewDay !== currentDay && (
-              <button
-                onClick={() => setViewDay(currentDay)}
-                className="text-sm text-indigo-600 hover:text-indigo-800 underline"
-              >
+              <button onClick={() => setViewDay(currentDay)} className="text-sm text-indigo-600 underline">
                 חזור להיום
               </button>
             )}
@@ -200,17 +199,12 @@ export default function DashboardPage() {
         {/* Today's Material */}
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <h2 className="text-lg font-bold text-gray-900 mb-3">📚 חומר ללימוד היום</h2>
-
           <div className="flex flex-wrap gap-2 mb-4">
             {todayPlan.topics.map((topic, i) => (
-              <span key={i} className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">
-                {topic}
-              </span>
+              <span key={i} className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">{topic}</span>
             ))}
           </div>
-
           <p className="text-gray-700 leading-relaxed mb-4" dir="auto">{todayPlan.summary}</p>
-
           <h3 className="font-semibold text-gray-800 mb-2">נקודות מפתח:</h3>
           <ul className="space-y-2">
             {todayPlan.keyPoints.map((point, i) => (
@@ -225,7 +219,7 @@ export default function DashboardPage() {
         {/* Osmosis Videos */}
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <h2 className="text-lg font-bold text-gray-900 mb-1">🎬 סרטוני Osmosis</h2>
-          <p className="text-sm text-gray-500 mb-3">לחץ כדי לחפש סרטונים רלוונטיים באתר Osmosis</p>
+          <p className="text-sm text-gray-500 mb-3">לחץ לחיפוש סרטונים רלוונטיים ב-Osmosis</p>
           <div className="flex flex-wrap gap-2">
             {todayPlan.osmosisTerms.map((term, i) => (
               <a
@@ -235,9 +229,7 @@ export default function DashboardPage() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                <span>🔍</span>
-                <span>{term}</span>
-                <span className="text-teal-500">↗</span>
+                🔍 {term} ↗
               </a>
             ))}
           </div>
@@ -249,9 +241,9 @@ export default function DashboardPage() {
 
           {!quizStarted && (
             <div className="text-center py-4">
-              <p className="text-gray-500 mb-4">5 שאלות על חומר היום, מבוססות על AI</p>
+              <p className="text-gray-500 mb-4">5 שאלות אמריקאיות על חומר היום</p>
               <button
-                onClick={startQuiz}
+                onClick={() => fetchQuestions(false)}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors"
               >
                 התחל חידון
@@ -262,7 +254,7 @@ export default function DashboardPage() {
           {quizStarted && loadingQuestions && (
             <div className="text-center py-6">
               <div className="animate-spin text-2xl mb-2">🤖</div>
-              <p className="text-gray-500">Claude מייצר שאלות...</p>
+              <p className="text-gray-500">Claude מייצר שאלות חדשות...</p>
             </div>
           )}
 
@@ -277,55 +269,31 @@ export default function DashboardPage() {
                 {currentQ_data.question}
               </p>
 
-              {currentQ_data.type === 'multiple_choice' && (
-                <div className="space-y-2">
-                  {(currentQ_data as MultipleChoiceQuestion).options.map((opt, i) => {
-                    let cls = 'border border-gray-200 rounded-xl p-3 cursor-pointer transition-all text-right';
-                    if (!answered) {
-                      cls += selectedAnswer === i ? ' bg-blue-50 border-blue-400' : ' hover:bg-gray-50';
-                    } else {
-                      if (i === (currentQ_data as MultipleChoiceQuestion).correctIndex) {
-                        cls += ' bg-green-50 border-green-400 text-green-800';
-                      } else if (selectedAnswer === i) {
-                        cls += ' bg-red-50 border-red-400 text-red-800';
-                      }
-                    }
-                    return (
-                      <div key={i} className={cls} onClick={() => !answered && setSelectedAnswer(i)} dir="auto">
-                        <span className="font-medium">{'ABCD'[i]}. </span>{opt}
-                      </div>
-                    );
-                  })}
-                  {answered && (
-                    <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-800 mt-2" dir="auto">
-                      <strong>הסבר:</strong> {(currentQ_data as MultipleChoiceQuestion).explanation}
+              <div className="space-y-2">
+                {currentQ_data.options.map((opt, i) => {
+                  let cls = 'border border-gray-200 rounded-xl p-3 cursor-pointer transition-all';
+                  if (!answered) {
+                    cls += selectedAnswer === i ? ' bg-blue-50 border-blue-400' : ' hover:bg-gray-50';
+                  } else {
+                    if (i === currentQ_data.correctIndex) cls += ' bg-green-50 border-green-400 text-green-800';
+                    else if (selectedAnswer === i) cls += ' bg-red-50 border-red-400 text-red-800';
+                  }
+                  return (
+                    <div key={i} className={cls} onClick={() => !answered && setSelectedAnswer(i)} dir="auto">
+                      <span className="font-medium">{'ABCD'[i]}. </span>{opt}
                     </div>
-                  )}
-                </div>
-              )}
-
-              {currentQ_data.type === 'short_answer' && (
-                <div>
-                  <textarea
-                    className="w-full border border-gray-200 rounded-xl p-3 text-gray-800 focus:outline-none focus:border-blue-400 resize-none"
-                    rows={3}
-                    placeholder="כתוב את תשובתך כאן..."
-                    dir="auto"
-                    value={shortAnswer}
-                    onChange={(e) => !answered && setShortAnswer(e.target.value)}
-                    readOnly={answered}
-                  />
-                  {answered && (
-                    <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-800 mt-2" dir="auto">
-                      <strong>תשובה מומלצת:</strong> {currentQ_data.modelAnswer}
-                    </div>
-                  )}
-                </div>
-              )}
+                  );
+                })}
+                {answered && (
+                  <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-800 mt-2" dir="auto">
+                    <strong>הסבר:</strong> {currentQ_data.explanation}
+                  </div>
+                )}
+              </div>
 
               <button
                 onClick={handleAnswer}
-                disabled={!answered && currentQ_data.type === 'multiple_choice' && selectedAnswer === null}
+                disabled={!answered && selectedAnswer === null}
                 className="mt-4 w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
               >
                 {answered ? (currentQ + 1 >= questions.length ? 'סיים חידון' : 'שאלה הבאה →') : 'בדוק תשובה'}
@@ -338,28 +306,30 @@ export default function DashboardPage() {
               <div className="text-4xl mb-2">
                 {score >= 4 ? '🏆' : score >= 2 ? '👍' : '📖'}
               </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-1">
-                {score} / {questions.filter((q) => q.type === 'multiple_choice').length} נכון
-              </h3>
-              <p className="text-gray-500 mb-4 text-sm">
-                {score >= 4 ? 'מעולה! שלטת בחומר!' : score >= 2 ? 'כל הכבוד, כדאי לחזור על הנקודות החלשות.' : 'לחזור ולקרוא שוב את החומר.'}
+              <h3 className="text-xl font-bold text-gray-800 mb-1">{score} / {questions.length} נכון</h3>
+              <p className="text-gray-500 mb-5 text-sm">
+                {score >= 4 ? 'מעולה! שלטת בחומר!' : score >= 2 ? 'כל הכבוד, כדאי לחזור על החומר החלש.' : 'כדאי לחזור ולקרוא שוב את החומר.'}
               </p>
-              <button
-                onClick={startQuiz}
-                className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium px-5 py-2 rounded-xl text-sm transition-colors"
-              >
-                נסה שוב
-              </button>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => fetchQuestions(false)}
+                  className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium px-5 py-2 rounded-xl text-sm transition-colors"
+                >
+                  נסה שוב
+                </button>
+                <button
+                  onClick={() => fetchQuestions(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-xl text-sm transition-colors"
+                >
+                  🔄 שאלות חדשות
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Footer */}
         <div className="text-center pb-6">
-          <button
-            onClick={() => router.push('/setup')}
-            className="text-xs text-gray-400 hover:text-gray-600 underline"
-          >
+          <button onClick={() => router.push('/setup')} className="text-xs text-gray-400 hover:text-gray-600 underline">
             עדכן קובץ לימוד
           </button>
         </div>

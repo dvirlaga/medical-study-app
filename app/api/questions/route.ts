@@ -6,12 +6,20 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function POST(request: NextRequest) {
   try {
-    const { dayPlan } = (await request.json()) as { dayPlan: DayPlan };
+    const { dayPlan, previousQuestions } = (await request.json()) as {
+      dayPlan: DayPlan;
+      previousQuestions?: string[];
+    };
+
+    const avoidClause =
+      previousQuestions && previousQuestions.length > 0
+        ? `\n\nDo NOT repeat these questions that were already asked:\n${previousQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
+        : '';
 
     const message = await client.messages.create({
       model: 'claude-opus-4-6',
       max_tokens: 4000,
-      system: `You are a medical exam question generator. Generate exactly 5 study questions.
+      system: `You are a medical exam question generator. Generate exactly 5 multiple choice questions.
 
 Return ONLY a valid JSON array — no markdown, no explanation:
 [
@@ -21,27 +29,24 @@ Return ONLY a valid JSON array — no markdown, no explanation:
     "options": ["Option A", "Option B", "Option C", "Option D"],
     "correctIndex": 0,
     "explanation": "Why this answer is correct"
-  },
-  {
-    "type": "short_answer",
-    "question": "Open question?",
-    "modelAnswer": "Expected model answer"
   }
 ]
 
-Generate 3 multiple_choice and 2 short_answer questions.
-Use the SAME language as the topics provided (Hebrew if topics are in Hebrew).
-Base questions strictly on the provided material.`,
+Rules:
+- ALL 5 questions must be multiple_choice with exactly 4 options
+- Use the SAME language as the topics (Hebrew if topics are in Hebrew)
+- Base questions strictly on the provided material
+- Vary the difficulty: 2 easy, 2 medium, 1 hard`,
 
       messages: [
         {
           role: 'user',
-          content: `Generate 5 questions for Day ${dayPlan.day}:
+          content: `Generate 5 NEW multiple choice questions for Day ${dayPlan.day}:
 
 Topics: ${dayPlan.topics.join(', ')}
 Summary: ${dayPlan.summary}
 Key Points:
-${dayPlan.keyPoints.map((p, i) => `${i + 1}. ${p}`).join('\n')}
+${dayPlan.keyPoints.map((p, i) => `${i + 1}. ${p}`).join('\n')}${avoidClause}
 
 Return ONLY valid JSON array.`,
         },
