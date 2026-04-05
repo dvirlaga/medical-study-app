@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { Redis } from '@upstash/redis';
-
-const kv = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
 import { StudyPlan } from '@/lib/types';
 
 export const maxDuration = 300;
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+
+const kv = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
 
 const START_DATE = '2026-04-05';
 const END_DATE = '2026-05-21';
@@ -36,23 +36,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No PDF file provided' }, { status: 400 });
     }
 
-    // Upload PDF to Anthropic Files API
+    // Convert PDF to base64 for direct sending to Claude
     const fileBytes = await pdfFile.arrayBuffer();
-    const uploadedFile = await client.beta.files.upload({
-      file: new File([fileBytes], pdfFile.name, { type: 'application/pdf' }),
-    });
+    const base64Pdf = Buffer.from(fileBytes).toString('base64');
 
     const dates = buildDateList();
-    const dateMap = dates
-      .map((date, i) => `Day ${i + 1}: ${date}`)
-      .join('\n');
+    const dateMap = dates.map((date, i) => `Day ${i + 1}: ${date}`).join('\n');
 
-    // Generate study plan
-    const message = await client.beta.messages.create({
+    // Generate study plan using Claude with PDF sent as base64 document
+    const message = await client.messages.create({
       model: 'claude-opus-4-6',
       max_tokens: 64000,
-      thinking: { type: 'adaptive' },
-      betas: ['files-api-2025-04-14'],
       system: `You are a medical study assistant. Analyze the provided PDF and create a ${TOTAL_DAYS}-day study plan.
 
 Return ONLY a valid JSON object — no markdown, no explanation, just JSON:
@@ -83,7 +77,11 @@ Rules:
           content: [
             {
               type: 'document',
-              source: { type: 'file', file_id: uploadedFile.id },
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: base64Pdf,
+              },
             } as any,
             {
               type: 'text',
@@ -94,7 +92,7 @@ Rules:
       ],
     });
 
-    // Extract text response (skip thinking blocks)
+    // Extract text response
     const textBlock = message.content.find((b) => b.type === 'text');
     if (!textBlock || textBlock.type !== 'text') {
       throw new Error('No text response from Claude');
@@ -118,11 +116,8 @@ Rules:
       days: planData.days,
     };
 
-    // Store in Vercel KV
+    // Store in Upstash Redis
     await kv.set('study-plan', JSON.stringify(studyPlan));
-
-    // Clean up file from Anthropic (non-critical)
-    client.beta.files.delete(uploadedFile.id).catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
