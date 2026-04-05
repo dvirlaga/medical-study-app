@@ -27,27 +27,28 @@ function buildDateList() {
   return list;
 }
 
+// Truncate text to avoid exceeding Claude's context window (~150K words)
+function truncateText(text: string, maxChars = 300_000): string {
+  if (text.length <= maxChars) return text;
+  return text.slice(0, maxChars) + '\n\n[... המסמך קוצר בשל אורך מקסימאלי ...]';
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const pdfFile = formData.get('pdf') as File | null;
+    const { text } = await request.json() as { text: string };
 
-    if (!pdfFile) {
-      return NextResponse.json({ error: 'No PDF file provided' }, { status: 400 });
+    if (!text || text.length < 100) {
+      return NextResponse.json({ error: 'No study material text provided' }, { status: 400 });
     }
 
-    // Convert PDF to base64 for direct sending to Claude
-    const fileBytes = await pdfFile.arrayBuffer();
-    const base64Pdf = Buffer.from(fileBytes).toString('base64');
-
+    const studyText = truncateText(text);
     const dates = buildDateList();
     const dateMap = dates.map((date, i) => `Day ${i + 1}: ${date}`).join('\n');
 
-    // Generate study plan using Claude with PDF sent as base64 document
     const message = await client.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 16000,
-      system: `You are a medical study assistant. Analyze the provided PDF and create a ${TOTAL_DAYS}-day study plan.
+      system: `You are a medical study assistant. Analyze the provided study material and create a ${TOTAL_DAYS}-day study plan.
 
 Return ONLY a valid JSON object — no markdown, no explanation, just JSON:
 {
@@ -68,37 +69,21 @@ Rules:
 - osmosisTerms MUST be in English (used to search on Osmosis medical video platform)
 - topics, summary, keyPoints should match the document's language (Hebrew if document is Hebrew)
 - Distribute ALL content evenly across ${TOTAL_DAYS} days
-- Days 45, 46, 47 must be comprehensive review days covering all material
-- topics should be specific chapter/section names from the document`,
+- Days 45, 46, 47 must be comprehensive review days covering all material`,
 
       messages: [
         {
           role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: {
-                type: 'base64',
-                media_type: 'application/pdf',
-                data: base64Pdf,
-              },
-            } as any,
-            {
-              type: 'text',
-              text: `Create a ${TOTAL_DAYS}-day study plan for these dates:\n${dateMap}\n\nReturn ONLY valid JSON, nothing else.`,
-            },
-          ],
+          content: `Here is the study material:\n\n${studyText}\n\n---\n\nCreate a ${TOTAL_DAYS}-day study plan for these dates:\n${dateMap}\n\nReturn ONLY valid JSON, nothing else.`,
         },
       ],
     });
 
-    // Extract text response
     const textBlock = message.content.find((b) => b.type === 'text');
     if (!textBlock || textBlock.type !== 'text') {
       throw new Error('No text response from Claude');
     }
 
-    // Parse JSON (handle potential markdown code fences)
     let jsonText = textBlock.text.trim();
     const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (fenceMatch) jsonText = fenceMatch[1].trim();
@@ -116,7 +101,6 @@ Rules:
       days: planData.days,
     };
 
-    // Store in Upstash Redis
     await kv.set('study-plan', JSON.stringify(studyPlan));
 
     return NextResponse.json({ success: true });
