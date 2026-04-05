@@ -4,23 +4,21 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 async function extractTextFromPDF(file: File): Promise<string> {
-  // Dynamic import keeps pdfjs out of the initial bundle
   const pdfjsLib = await import('pdfjs-dist' as any);
 
-  // Use CDN worker — avoids bundling complexity entirely
+  // pdfjs-dist v3 uses plain .js worker — works in all browsers including Safari
   pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://unpkg.com/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
+    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
   const arrayBuffer = await file.arrayBuffer();
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
-  const pdf = await loadingTask.promise;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
   const pages: string[] = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
+  for (let i = 1; i <= (pdf as any).numPages; i++) {
+    const page = await (pdf as any).getPage(i);
     const content = await page.getTextContent();
     const pageText = (content.items as any[])
-      .map((item: any) => item.str ?? '')
+      .map((item: any) => (typeof item.str === 'string' ? item.str : ''))
       .join(' ');
     pages.push(pageText);
   }
