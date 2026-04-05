@@ -225,17 +225,17 @@ export default function DashboardPage() {
         {/* Osmosis Videos */}
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <h2 className="text-lg font-bold text-gray-900 mb-1">🎬 סרטוני Osmosis</h2>
-          <p className="text-sm text-gray-500 mb-3">לחץ לחיפוש סרטונים רלוונטיים ב-Osmosis</p>
+          <p className="text-sm text-gray-500 mb-3">לחץ לחיפוש סרטוני Osmosis ב-YouTube</p>
           <div className="flex flex-wrap gap-2">
             {todayPlan.osmosisTerms.map((term, i) => (
               <a
                 key={i}
-                href={`https://www.osmosis.org/search?q=${encodeURIComponent(term)}`}
+                href={`https://www.youtube.com/results?search_query=osmosis+${encodeURIComponent(term)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                🔍 {term} ↗
+                🎬 {term} ↗
               </a>
             ))}
           </div>
