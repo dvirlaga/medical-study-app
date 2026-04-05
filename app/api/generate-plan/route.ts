@@ -27,10 +27,21 @@ function buildDateList() {
   return list;
 }
 
-// Truncate text to avoid exceeding Claude's context window (~150K words)
-function truncateText(text: string, maxChars = 300_000): string {
+// Sample from beginning, middle and end so Claude sees the full scope
+function truncateText(text: string, maxChars = 180_000): string {
   if (text.length <= maxChars) return text;
-  return text.slice(0, maxChars) + '\n\n[... המסמך קוצר בשל אורך מקסימאלי ...]';
+  const third = Math.floor(maxChars / 3);
+  const mid = Math.floor(text.length / 2);
+  const start = text.slice(0, third);
+  const middle = text.slice(mid - Math.floor(third / 2), mid + Math.floor(third / 2));
+  const end = text.slice(text.length - third);
+  return (
+    start +
+    '\n\n[... קטע אמצעי מהמסמך ...]\n\n' +
+    middle +
+    '\n\n[... המשך המסמך ...]\n\n' +
+    end
+  );
 }
 
 export async function POST(request: NextRequest) {
