@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     const message = await client.messages.create({
       model: 'claude-haiku-4-5',
-      max_tokens: 16000,
+      max_tokens: 20000,
       system: `You are a medical study assistant. Analyze the provided study material and create a ${TOTAL_DAYS}-day study plan.
 
 Return ONLY a valid JSON object — no markdown, no explanation, just JSON:
@@ -82,7 +82,8 @@ Rules:
 - topics, summary, keyPoints should match the document's language (Hebrew if document is Hebrew)
 - Distribute ALL content evenly across ${TOTAL_DAYS} days
 - Days 45, 46, 47 must be comprehensive review days covering all material
-- pages: the relevant page range(s) from the PDF for that day (e.g. "12-34" or "45, 67-70"). If page numbers are not visible in the text, estimate based on content position.`,
+- pages: the relevant page range(s) from the PDF for that day (e.g. "12-34" or "45, 67-70"). Use ONLY digits and hyphens/commas, no other characters.
+- CRITICAL: Return strictly valid JSON. Escape any double quotes inside string values. Do not truncate the JSON — include all ${TOTAL_DAYS} days.`,
 
       messages: [
         {
@@ -103,7 +104,14 @@ Rules:
     const objMatch = jsonText.match(/\{[\s\S]*\}/);
     if (objMatch) jsonText = objMatch[0];
 
-    const planData = JSON.parse(jsonText);
+    // Attempt parse; on failure log the raw response for debugging
+    let planData: any;
+    try {
+      planData = JSON.parse(jsonText);
+    } catch (parseErr: any) {
+      console.error('JSON parse failed. Raw response (first 2000 chars):', jsonText.slice(0, 2000));
+      throw new Error(`Claude returned invalid JSON: ${parseErr.message}`);
+    }
 
     const studyPlan: StudyPlan = {
       subject: planData.subject ?? 'Medical Studies',
